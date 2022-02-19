@@ -1,6 +1,9 @@
+import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { NextPage } from 'next';
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, useEffect } from 'react';
 import { useSpring, animated } from 'react-spring';
+
+import { db } from '../firebase';
 
 const Home: NextPage = () => {
   /* 座標 */
@@ -12,40 +15,52 @@ const Home: NextPage = () => {
   });
   const moveTop = () => {
     if (coordinates.y < 1) return;
-    setCoordinates((prev) => ({
-      x: prev.x,
-      y: prev.y - 1,
-    }));
+    setCoordinates({
+      x: coordinates.x,
+      y: coordinates.y - 1,
+    });
+    savePosition({
+      x: coordinates.x,
+      y: coordinates.y - 1,
+    });
   };
   const moveRight = () => {
     if (coordinates.x > 8) return;
-    setCoordinates((prev) => ({
-      x: prev.x + 1,
-      y: prev.y,
-    }));
+    setCoordinates({
+      x: coordinates.x + 1,
+      y: coordinates.y,
+    });
+    savePosition({
+      x: coordinates.x + 1,
+      y: coordinates.y,
+    });
   };
   const moveBottom = () => {
     if (coordinates.y > 8) return;
-    setCoordinates((prev) => ({
-      x: prev.x,
-      y: prev.y + 1,
-    }));
+    setCoordinates({
+      x: coordinates.x,
+      y: coordinates.y + 1,
+    });
+    savePosition({
+      x: coordinates.x,
+      y: coordinates.y + 1,
+    });
   };
   const moveLeft = () => {
     if (coordinates.x < 1) return;
-    setCoordinates((prev) => ({
-      x: prev.x - 1,
-      y: prev.y,
-    }));
+    setCoordinates({
+      x: coordinates.x - 1,
+      y: coordinates.y,
+    });
+    savePosition({
+      x: coordinates.x - 1,
+      y: coordinates.y,
+    });
   };
-  const [isRepeat, setIsRepeat] = useState(false);
+  const [isAwait, setIsAwait] = useState(false);
   const onKeyDown = async (e: KeyboardEvent<HTMLDivElement>) => {
-    if (isRepeat) return;
-    if (e.repeat) {
-      setIsRepeat(true);
-      await new Promise((s) => setTimeout(s, 100));
-      setIsRepeat(false);
-    }
+    if (isAwait) return;
+    setIsAwait(true);
     switch (e.key) {
       case 'ArrowUp':
       case 'w':
@@ -66,7 +81,25 @@ const Home: NextPage = () => {
       default:
         break;
     }
+    await new Promise((s) => setTimeout(s, 100));
+    setIsAwait(false);
   };
+
+  const savePosition = async (coordinates: { x: number; y: number }) => {
+    /* firestoreによる処理 */
+    const ref = doc(db, '2d-game', 'testDoc');
+    await setDoc(ref, coordinates);
+    /* Realtime DB による処理 */
+  };
+
+  useEffect(() => {
+    /* firestoreによる処理 */
+    onSnapshot(doc(db, '2d-game', 'testDoc'), (snapshot) => {
+      const { x, y } = snapshot.data() as { x: number; y: number };
+      setCoordinates({ x, y });
+    });
+    /* Realtime DB による処理 */
+  }, []);
 
   return (
     <div>
