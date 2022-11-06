@@ -1,62 +1,72 @@
-import { collection, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import type { NextPage } from 'next';
-import { useState, KeyboardEvent, useEffect } from 'react';
+import { useState, KeyboardEvent, useEffect, useMemo } from 'react';
 import { useSpring, animated } from 'react-spring';
-
-import { db } from '../firebase';
 
 const Home: NextPage = () => {
   /* 座標 */
-  const [coordinates, setCoordinates] = useState({ x: 0, y: 0 });
-  const styles = useSpring({
+  const [coordinates1, setCoordinates1] = useState({ x: 0, y: 0 });
+  const [coordinates2, setCoordinates2] = useState({ x: 5, y: 5 });
+  const touch = useMemo(
+    () =>
+      coordinates1.x === coordinates2.x && coordinates1.y === coordinates2.y,
+    [coordinates1, coordinates2],
+  );
+
+  const styles1 = useSpring({
     top: 0,
     left: 0,
-    to: { top: coordinates.y * 60, left: coordinates.x * 60 },
+    to: { top: coordinates1.y * 60, left: coordinates1.x * 60 },
   });
-  const moveTop = () => {
-    if (coordinates.y < 1) return;
+  const styles2 = useSpring({
+    top: 0,
+    left: 0,
+    to: { top: coordinates2.y * 60, left: coordinates2.x * 60 },
+  });
+  const moveTop = (
+    coordinates: { x: number; y: number },
+    setCoordinates: (param: { x: number; y: number }) => void,
+  ) => {
+    if (coordinates.y < 1) return false;
     setCoordinates({
       x: coordinates.x,
       y: coordinates.y - 1,
     });
-    savePosition({
-      x: coordinates.x,
-      y: coordinates.y - 1,
-    });
+    return true;
   };
-  const moveRight = () => {
-    if (coordinates.x > 8) return;
+  const moveRight = (
+    coordinates: { x: number; y: number },
+    setCoordinates: (param: { x: number; y: number }) => void,
+  ) => {
+    if (coordinates.x > 8) return false;
     setCoordinates({
       x: coordinates.x + 1,
       y: coordinates.y,
     });
-    savePosition({
-      x: coordinates.x + 1,
-      y: coordinates.y,
-    });
+    return true;
   };
-  const moveBottom = () => {
-    if (coordinates.y > 8) return;
+  const moveBottom = (
+    coordinates: { x: number; y: number },
+    setCoordinates: (param: { x: number; y: number }) => void,
+  ) => {
+    if (coordinates.y > 8) return false;
     setCoordinates({
       x: coordinates.x,
       y: coordinates.y + 1,
     });
-    savePosition({
-      x: coordinates.x,
-      y: coordinates.y + 1,
-    });
+    return true;
   };
-  const moveLeft = () => {
-    if (coordinates.x < 1) return;
+  const moveLeft = (
+    coordinates: { x: number; y: number },
+    setCoordinates: (param: { x: number; y: number }) => void,
+  ) => {
+    if (coordinates.x < 1) return false;
     setCoordinates({
       x: coordinates.x - 1,
       y: coordinates.y,
     });
-    savePosition({
-      x: coordinates.x - 1,
-      y: coordinates.y,
-    });
+    return true;
   };
+
   const [isAwait, setIsAwait] = useState(false);
   const onKeyDown = async (e: KeyboardEvent<HTMLDivElement>) => {
     if (isAwait) return;
@@ -64,42 +74,55 @@ const Home: NextPage = () => {
     switch (e.key) {
       case 'ArrowUp':
       case 'w':
-        moveTop();
+        moveTop(coordinates1, setCoordinates1);
         break;
       case 'ArrowRight':
       case 'd':
-        moveRight();
+        moveRight(coordinates1, setCoordinates1);
         break;
       case 'ArrowDown':
       case 's':
-        moveBottom();
+        moveBottom(coordinates1, setCoordinates1);
         break;
       case 'ArrowLeft':
       case 'a':
-        moveLeft();
+        moveLeft(coordinates1, setCoordinates1);
         break;
       default:
         break;
     }
-    await new Promise((s) => setTimeout(s, 100));
+    await new Promise((s) => setTimeout(s, 1000));
     setIsAwait(false);
   };
 
-  const savePosition = async (coordinates: { x: number; y: number }) => {
-    /* firestoreによる処理 */
-    const ref = doc(db, '2d-game', 'testDoc');
-    await setDoc(ref, coordinates);
-    /* Realtime DB による処理 */
-  };
-
   useEffect(() => {
-    /* firestoreによる処理 */
-    onSnapshot(doc(db, '2d-game', 'testDoc'), (snapshot) => {
-      const { x, y } = snapshot.data() as { x: number; y: number };
-      setCoordinates({ x, y });
-    });
-    /* Realtime DB による処理 */
-  }, []);
+    /* Random walk */
+    const interval = setInterval(() => {
+      touch && alert('touch');
+      let isMoved = false;
+      while (!isMoved) {
+        const random = Math.floor(Math.random() * 4);
+        switch (random) {
+          case 0:
+            isMoved = moveTop(coordinates2, setCoordinates2);
+            break;
+          case 1:
+            isMoved = moveRight(coordinates2, setCoordinates2);
+            break;
+          case 2:
+            isMoved = moveBottom(coordinates2, setCoordinates2);
+            break;
+          case 3:
+            isMoved = moveLeft(coordinates2, setCoordinates2);
+            break;
+          default:
+            break;
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [coordinates2, touch]);
 
   return (
     <div>
@@ -110,9 +133,15 @@ const Home: NextPage = () => {
       >
         <animated.div
           className='w-[60px] h-[60px] bg-red-500 absolute rounded-md'
-          style={styles}
+          style={styles1}
+        ></animated.div>
+        <animated.div
+          className='w-[60px] h-[60px] bg-blue-500 absolute rounded-md'
+          style={styles2}
         ></animated.div>
       </div>
+
+      <div>{!touch ? '逃げろー' : '捕まりました'}</div>
 
       <div className='space-x-1 space-y-1 mt-4'>
         <button className='bg-gray-400 text-gray-400 font-bold py-2 px-4 rounded ml-1'>
@@ -120,7 +149,7 @@ const Home: NextPage = () => {
         </button>
         <button
           className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
-          onClick={moveTop}
+          onClick={() => moveTop(coordinates1, setCoordinates1)}
         >
           ↑
         </button>
@@ -132,7 +161,7 @@ const Home: NextPage = () => {
 
         <button
           className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
-          onClick={moveLeft}
+          onClick={() => moveLeft(coordinates1, setCoordinates1)}
         >
           ←
         </button>
@@ -141,7 +170,7 @@ const Home: NextPage = () => {
         </button>
         <button
           className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
-          onClick={moveRight}
+          onClick={() => moveRight(coordinates1, setCoordinates1)}
         >
           →
         </button>
@@ -153,7 +182,7 @@ const Home: NextPage = () => {
         </button>
         <button
           className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded'
-          onClick={moveBottom}
+          onClick={() => moveBottom(coordinates1, setCoordinates1)}
         >
           ↓
         </button>
